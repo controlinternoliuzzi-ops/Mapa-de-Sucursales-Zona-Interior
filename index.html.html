@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Interno – Mapa de Sucursales 2026 | APOSTA.LA</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f4f0;
+  --surface: #ffffff;
+  --surface2: #f0efe9;
+  --border: #e2e0d8;
+  --text: #1a1916;
+  --text-muted: #6b6960;
+  --pending: #e53e3e;
+  --pending-light: #fff5f5;
+  --pending-border: #feb2b2;
+  --scheduled: #d69e2e;
+  --scheduled-light: #fffff0;
+  --scheduled-border: #faf089;
+  --controlled: #38a169;
+  --controlled-light: #f0fff4;
+  --controlled-border: #9ae6b4;
+  --route: #3182ce;
+  --accent: #1a1916;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--text);
+  color: #fff;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+.header-brand { display: flex; align-items: center; gap: 12px; }
+.header-logo {
+  width: 32px; height: 32px;
+  background: #fff;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 12px; color: var(--text); letter-spacing: -0.5px;
+}
+.header-title { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+.header-sub { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 1px; }
+.header-nav { display: flex; gap: 4px; }
+.nav-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.8);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+.nav-btn:hover, .nav-btn.active {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border-color: rgba(255,255,255,0.3);
+}
+
+/* ── LAYOUT ── */
+.app { display: flex; height: calc(100vh - 56px); }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.25s ease;
+}
+.sidebar.collapsed { width: 0; }
+
+.sidebar-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sidebar-header h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-muted); }
+
+/* KPI Strip */
+.kpi-strip {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.kpi {
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.kpi-val { font-size: 22px; font-weight: 700; font-family: 'DM Mono', monospace; line-height: 1; }
+.kpi-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.kpi.pending .kpi-val { color: var(--pending); }
+.kpi.controlled .kpi-val { color: var(--controlled); }
+.kpi.scheduled .kpi-val { color: var(--scheduled); }
+.kpi.coverage .kpi-val { color: var(--route); }
+
+/* Progress bar */
+.progress-wrap { padding: 0 16px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.progress-bar { height: 6px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--controlled), #68d391); border-radius: 99px; transition: width 0.5s ease; }
+
+/* Filters */
+.filters { padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.filter-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.filter-row:last-child { margin-bottom: 0; }
+select, input[type="text"] {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 13px;
+  background: var(--surface2);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+select:focus, input:focus { border-color: var(--text); }
+
+/* Branch list */
+.branch-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.branch-list::-webkit-scrollbar { width: 4px; }
+.branch-list::-webkit-scrollbar-track { background: transparent; }
+.branch-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.branch-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border);
+}
+.branch-item:last-child { border-bottom: none; }
+.branch-item:hover { background: var(--surface2); }
+.branch-item.selected { background: #eef4ff; }
+.branch-item.route-selected { background: #eff6ff; }
+
+.branch-check {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.1s;
+  display: flex; align-items: center; justify-content: center;
+}
+.branch-check.checked { background: var(--route); border-color: var(--route); }
+.branch-check.checked::after { content: '✓'; color: #fff; font-size: 10px; font-weight: 700; }
+
+.pin-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+}
+
+.branch-info { flex: 1; min-width: 0; }
+.branch-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.branch-meta { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+.status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 99px;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+.badge-pendiente { background: var(--pending-light); color: var(--pending); border: 1px solid var(--pending-border); }
+.badge-programada { background: var(--scheduled-light); color: var(--scheduled); border: 1px solid var(--scheduled-border); }
+.badge-controlada { background: var(--controlled-light); color: var(--controlled); border: 1px solid var(--controlled-border); }
+
+/* Route panel */
+.route-panel {
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.route-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface2);
+  position: sticky; top: 0;
+  font-size: 12px; font-weight: 600;
+}
+.route-btn {
+  padding: 5px 12px;
+  background: var(--route);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.route-btn:hover { opacity: 0.85; }
+.route-btn.danger { background: var(--pending); }
+.route-stop {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.stop-num {
+  width: 20px; height: 20px;
+  background: var(--route);
+  color: #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  flex-shrink: 0;
+}
+.route-stats { padding: 8px 16px; font-size: 12px; color: var(--text-muted); background: var(--surface2); }
+
+/* ── MAIN MAP ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#map { flex: 1; }
+
+/* ── DASHBOARD VIEW ── */
+#dashboard-view {
+  display: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: var(--bg);
+}
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.dash-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.dash-card-big { padding: 28px; }
+.dash-number { font-size: 36px; font-weight: 700; font-family: 'DM Mono', monospace; line-height: 1; }
+.dash-label { font-size: 12px; color: var(--text-muted); margin-top: 6px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; }
+.dash-number.red { color: var(--pending); }
+.dash-number.green { color: var(--controlled); }
+.dash-number.yellow { color: var(--scheduled); }
+.dash-number.blue { color: var(--route); }
+
+.dash-section { margin-bottom: 24px; }
+.dash-section h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.dash-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.dash-table th { background: var(--surface2); padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.dash-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.dash-table tr:last-child td { border-bottom: none; }
+.dash-table tr:hover td { background: var(--surface2); }
+
+.dept-bar-wrap { display: flex; align-items: center; gap: 10px; }
+.dept-bar { height: 8px; background: var(--pending); border-radius: 99px; min-width: 8px; }
+
+/* ── ANALYSIS VIEW ── */
+#analysis-view {
+  display: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: var(--bg);
+}
+.analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.analysis-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+.analysis-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.alt-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.alt-row:last-child { border-bottom: none; }
+.score-dots { display: flex; gap: 3px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.dot.filled { background: var(--controlled); }
+.dot.half-filled { background: var(--scheduled); }
+
+.rec-card { background: linear-gradient(135deg, #1a1916 0%, #2d3748 100%); color: #fff; border-radius: var(--radius); padding: 28px; margin-top: 20px; }
+.rec-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.rec-card p { font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.7; }
+.rec-badge { display: inline-block; background: var(--controlled); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-bottom: 12px; }
+
+/* Popup */
+.leaflet-popup-content-wrapper { border-radius: var(--radius) !important; box-shadow: var(--shadow-lg) !important; padding: 0 !important; overflow: hidden; font-family: 'DM Sans', sans-serif !important; }
+.leaflet-popup-content { margin: 0 !important; width: 260px !important; }
+.popup-header { padding: 14px 16px; background: var(--text); color: #fff; }
+.popup-title { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.popup-location { font-size: 12px; color: rgba(255,255,255,0.65); }
+.popup-body { padding: 14px 16px; }
+.popup-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.popup-row:last-child { border-bottom: none; }
+.popup-key { color: var(--text-muted); }
+.popup-val { font-weight: 500; text-align: right; max-width: 140px; }
+
+/* Notification */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--text); color: #fff;
+  padding: 12px 20px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(80px); opacity: 0;
+  transition: all 0.3s cubic-bezier(.34,1.56,.64,1);
+  z-index: 9999;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 100%; position: absolute; z-index: 500; bottom: 0; height: 50vh; border-right: none; border-top: 1px solid var(--border); }
+  .header-sub { display: none; }
+  .analysis-grid { grid-template-columns: 1fr; }
+}
+
+.toggle-sidebar-btn {
+  position: absolute; top: 70px; left: 0; z-index: 600;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: none; border-radius: 0 6px 6px 0;
+  padding: 8px 6px; cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: all 0.15s;
+  font-size: 12px;
+  display: none;
+}
+
+.leaflet-control-zoom { border: 1px solid var(--border) !important; border-radius: var(--radius-sm) !important; }
+.leaflet-control-zoom a { color: var(--text) !important; font-weight: 600 !important; }
+
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: 3px 10px; font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <div class="header-logo">AP</div>
+    <div>
+      <div class="header-title">Control Interno · Sucursales 2026</div>
+      <div class="header-sub">APOSTA.LA · Responsable: Oscar Rafael Liuzzi Franco</div>
+    </div>
+  </div>
+  <nav class="header-nav">
+    <button class="nav-btn active" onclick="showView('map')" id="btn-map">🗺 Mapa</button>
+    <button class="nav-btn" onclick="showView('dashboard')" id="btn-dashboard">📊 Dashboard</button>
+    <button class="nav-btn" onclick="showView('analysis')" id="btn-analysis">⚖️ Análisis</button>
+  </nav>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h3>Sucursales del Interior</h3>
+    </div>
+
+    <div class="kpi-strip">
+      <div class="kpi pending">
+        <div class="kpi-val" id="kpi-pending">33</div>
+        <div class="kpi-label">Pendientes</div>
+      </div>
+      <div class="kpi controlled">
+        <div class="kpi-val" id="kpi-controlled">0</div>
+        <div class="kpi-label">Controladas</div>
+      </div>
+      <div class="kpi scheduled">
+        <div class="kpi-val" id="kpi-scheduled">0</div>
+        <div class="kpi-label">Programadas</div>
+      </div>
+      <div class="kpi coverage">
+        <div class="kpi-val" id="kpi-coverage">0%</div>
+        <div class="kpi-label">Cobertura</div>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Cobertura de Control</span>
+        <span id="prog-label">0 / 33</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="filter-row">
+        <input type="text" id="search-input" placeholder="🔍 Buscar sucursal..." oninput="filterBranches()">
+      </div>
+      <div class="filter-row">
+        <select id="filter-dept" onchange="filterBranches()">
+          <option value="">Todos los departamentos</option>
+        </select>
+        <select id="filter-status" onchange="filterBranches()">
+          <option value="">Todos los estados</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Programada">Programada</option>
+          <option value="Controlada">Controlada</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="branch-list" id="branch-list"></div>
+
+    <div class="route-panel" id="route-panel" style="display:none">
+      <div class="route-panel-header">
+        <span>🧭 Ruta planificada (<span id="route-count">0</span> paradas)</span>
+        <div style="display:flex;gap:6px">
+          <button class="route-btn" onclick="optimizeRoute()">Optimizar</button>
+          <button class="route-btn danger" onclick="clearRoute()">✕ Limpiar</button>
+        </div>
+      </div>
+      <div id="route-stops"></div>
+      <div class="route-stats" id="route-stats"></div>
+    </div>
+  </aside>
+
+  <!-- MAP -->
+  <main class="main">
+    <div id="map" style="display:flex;flex:1"></div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard-view">
+      <div class="dash-grid" id="dash-kpis"></div>
+      <div class="dash-section">
+        <h3>Pendientes por Departamento</h3>
+        <table class="dash-table" id="dash-dept-table">
+          <thead><tr><th>Departamento</th><th>Sucursales</th><th>Pendientes</th><th>Distribución</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="dash-section">
+        <h3>Detalle de Sucursales</h3>
+        <table class="dash-table" id="dash-detail-table">
+          <thead><tr><th>#</th><th>Sucursal</th><th>Ciudad</th><th>Dpto.</th><th>Dist. (km)</th><th>Horario</th><th>Controles</th><th>Estado</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="dash-section">
+        <h3>Planificación de Viajes</h3>
+        <table class="dash-table">
+          <thead><tr><th>Viaje</th><th>Tipo</th><th>Departamentos</th><th>Sucursales</th><th>Días</th><th>Responsable</th><th>Costo Est.</th><th>Estado</th></tr></thead>
+          <tbody id="dash-trips"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ANALYSIS -->
+    <div id="analysis-view">
+      <div style="max-width:900px;margin:0 auto">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">Análisis Comparativo de Soluciones</h2>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px">Evaluación técnica para el Departamento de Control Interno · APOSTA.LA</p>
+        <div class="analysis-grid" id="analysis-grid"></div>
+        <div class="rec-card" id="rec-card"></div>
+        <div style="margin-top:24px">
+          <div class="analysis-card" style="grid-column:1/-1">
+            <h4>🏗 Arquitectura Recomendada</h4>
+            <div id="architecture-content"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
+const BASE = { name: 'Ypacaraí (Base)', lat: -25.402054, lng: -57.291520, isBase: true };
+
+const BRANCHES = [
+  { id:1,  name:'YPACARAI',                  dept:'CENTRAL',     city:'YPACARAI',                     dist:43,  lat:-25.402054, lng:-57.291520, horario:'08:00–17:00 (Lunes cerrado)', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:2,  name:'CAACUPE 1',                 dept:'CORDILLERA',  city:'CAACUPE',                      dist:60,  lat:-25.385484, lng:-57.138938, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:3,  name:'CAACUPE 2',                 dept:'CORDILLERA',  city:'CAACUPE',                      dist:60,  lat:-25.392212, lng:-57.146084, horario:'08:00–18:00 (Sábado 08:00–14:30, Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:4,  name:'PARAGUARI',                 dept:'PARAGUARI',   city:'PARAGUARI',                    dist:74,  lat:-25.621248, lng:-57.152286, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:5,  name:'PARAGUARI 2',               dept:'PARAGUARI',   city:'PARAGUARI',                    dist:75,  lat:-25.617221, lng:-57.144653, horario:'09:00–18:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:6,  name:'BARRERO',                   dept:'CORDILLERA',  city:'BARRERO',                      dist:80,  lat:-25.382202, lng:-56.962729, horario:'09:00–18:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:7,  name:'TOBATI',                    dept:'CORDILLERA',  city:'TOBATI',                       dist:80,  lat:-25.262667, lng:-57.083673, horario:'08:00–17:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:8,  name:'CARAPEGUA',                 dept:'PARAGUARI',   city:'CARAPEGUA',                    dist:87,  lat:-25.768158, lng:-57.242830, horario:'09:00–18:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:9,  name:'PIRIBEBUY',                 dept:'CORDILLERA',  city:'PIRIBEBUY',                    dist:90,  lat:-25.462986, lng:-57.042147, horario:'08:00–17:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:10, name:'CARAGUATAY',                dept:'CORDILLERA',  city:'CARAGUATAY',                   dist:107, lat:-25.236958, lng:-56.825976, horario:'08:00–17:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:11, name:'QUIINDY',                   dept:'PARAGUARI',   city:'QUIINDY',                      dist:110, lat:-25.972528, lng:-57.238665, horario:'08:00–18:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:12, name:'SAN JOSÉ DE LOS ARROYOS',   dept:'CAAGUAZU',    city:'SAN JOSÉ DE LOS ARROYOS',      dist:115, lat:-25.532781, lng:-56.731006, horario:'08:00–18:00 (Lunes cerrado)', controls:1, lastVisit:'18/02', status:'Pendiente', obs:'' },
+  { id:13, name:'OVIEDO 1',                  dept:'CAAGUAZU',    city:'CORONEL OVIEDO',               dist:146, lat:-25.465602, lng:-56.450346, horario:'08:00–17:00 (Lunes 09:00–17:00)', controls:1, lastVisit:'18/02', status:'Pendiente', obs:'' },
+  { id:14, name:'SANTANI',                   dept:'SAN PEDRO',   city:'SAN ESTANISLAO',               dist:165, lat:-24.664572, lng:-56.443860, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:15, name:'VILLARRICA',                dept:'GUAIRA',      city:'VILLARRICA',                   dist:168, lat:-25.773935, lng:-56.447941, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:16, name:'VILLARRICA 2',              dept:'GUAIRA',      city:'VILLARRICA',                   dist:168, lat:-25.778126, lng:-56.440489, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:17, name:'CAAGUAZU 2',               dept:'CAAGUAZU',    city:'CAAGUAZÚ',                     dist:193, lat:-25.457979, lng:-56.018584, horario:'08:00–20:00', controls:2, lastVisit:'04/02, 20/05', status:'Pendiente', obs:'' },
+  { id:18, name:'CAAGUAZU',                 dept:'CAAGUAZU',    city:'CAAGUAZÚ',                     dist:194, lat:-25.467463, lng:-56.018700, horario:'08:00–22:00', controls:2, lastVisit:'04/02, 20/05', status:'Pendiente', obs:'' },
+  { id:19, name:'CAAGUAZU 3',               dept:'CAAGUAZU',    city:'CAAGUAZÚ',                     dist:200, lat:-25.477136, lng:-56.011414, horario:'08:00–17:00', controls:2, lastVisit:'04/02, 20/05', status:'Pendiente', obs:'' },
+  { id:20, name:'SAN JUAN BAUTISTA',         dept:'MISIONES',    city:'SAN JUAN BAUTISTA',            dist:216, lat:-26.670051, lng:-57.142499, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:21, name:'PILAR 2',                   dept:'ÑEEMBUCU',    city:'PILAR',                        dist:228, lat:-26.843956, lng:-58.291923, horario:'09:00–18:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:22, name:'SAN IGNACIO',               dept:'MISIONES',    city:'SAN IGNACIO MISIONES',         dist:230, lat:-26.886492, lng:-57.028306, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:23, name:'CAMPO 9',                   dept:'CAAGUAZU',    city:'DR. JUAN EULOGIO ESTIGARRIBIA',dist:230, lat:-25.377804, lng:-55.708008, horario:'08:00–17:00 (Lunes 09:00–17:00)', controls:1, lastVisit:'27/02', status:'Pendiente', obs:'' },
+  { id:24, name:'PILAR 3',                   dept:'ÑEEMBUCU',    city:'PILAR',                        dist:231, lat:-26.861736, lng:-58.302160, horario:'09:00–18:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:25, name:'PILAR 1',                   dept:'ÑEEMBUCU',    city:'PILAR',                        dist:232, lat:-26.872683, lng:-58.302449, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:26, name:'SAN JUAN NEPOMUCENO',        dept:'CAAZAPA',     city:'SAN JUAN NEPOMUCENO',          dist:247, lat:-26.113084, lng:-55.940195, horario:'09:00–18:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:27, name:'OCAMPOS',                   dept:'CAAGUAZU',    city:'OCAMPOS',                      dist:252, lat:-25.411630, lng:-55.431418, horario:'09:00–18:00 (Lunes cerrado)', controls:1, lastVisit:'27/01', status:'Pendiente', obs:'' },
+  { id:28, name:'SANTA ROSA',                dept:'SAN PEDRO',   city:'SANTA ROSA DEL AGUARAY',       dist:262, lat:-23.825488, lng:-56.519274, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:29, name:'AYOLAS',                    dept:'MISIONES',    city:'AYOLAS',                       dist:323, lat:-27.390542, lng:-56.843040, horario:'08:00–18:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:30, name:'CORONEL BOGADO',            dept:'ITAPUA',      city:'CORONEL BOGADO',               dist:344, lat:-27.155368, lng:-56.233132, horario:'08:00–18:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:31, name:'OBLIGADO',                  dept:'ITAPUA',      city:'OBLIGADO',                     dist:384, lat:-27.061197, lng:-55.634384, horario:'08:00–17:00 (Lunes cerrado)', controls:0, lastVisit:'', status:'Pendiente', obs:'' },
+  { id:32, name:'ENCARNACION',               dept:'ITAPUA',      city:'ENCARNACION',                  dist:390, lat:-27.355951, lng:-55.854645, horario:'08:00–20:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+  { id:33, name:'ENCARNACION 2',             dept:'ITAPUA',      city:'ENCARNACION',                  dist:390, lat:-27.330992, lng:-55.872944, horario:'09:00–18:00', controls:0, lastVisit:'',         status:'Pendiente', obs:'' },
+];
+
+const TRIPS = [
+  { id:'01', type:'Definido',   date:'17/06/2026', depts:'Cordillera / Caaguazú / San Pedro', branches:'Caacupe 1, Caacupe 2, Tobati, Caraguatay, Barrero, Piribebuy, San José de los Arroyos, Oviedo 1, Santani, Santa Rosa', qty:10, days:3, responsible:'Oscar Rafael Liuzzi Franco', cost:'₲ 900.000', status:'Pendiente' },
+  { id:'02', type:'Definido',   date:'A estimar',  depts:'Paraguarí',                         branches:'Quiindy, Carapegua, Paraguari, Paraguari 2', qty:4, days:1, responsible:'Oscar Rafael Liuzzi Franco', cost:'₲ 600.000', status:'Pendiente' },
+  { id:'03', type:'Estimativo', date:'A estimar',  depts:'Villarrica / Caaguazú',             branches:'Villarrica, Villarrica 2, Caaguazú, Caaguazú 2, Caaguazú 3', qty:5, days:2, responsible:'Por asignar', cost:'–', status:'Pendiente' },
+  { id:'04', type:'Estimativo', date:'A estimar',  depts:'Misiones / Ñeembucú',               branches:'San Ignacio, San Juan Bautista, Ayolas, Pilar 1, Pilar 2, Pilar 3', qty:6, days:2, responsible:'Por asignar', cost:'–', status:'Pendiente' },
+  { id:'05', type:'Estimativo', date:'A estimar',  depts:'Caaguazú Norte / San Pedro',        branches:'Campo 9, Ocampos, Santa Rosa del Aguaray (2ª visita)', qty:3, days:2, responsible:'Por asignar', cost:'–', status:'Pendiente' },
+  { id:'06', type:'Estimativo', date:'A estimar',  depts:'Itapúa',                            branches:'Coronel Bogado, Obligado, Encarnación, Encarnación 2', qty:4, days:2, responsible:'Por asignar', cost:'–', status:'Pendiente' },
+];
+
+const COORD_NOTES = [
+  'YPACARAI (id:1): Coordenada verificada ✓ Coincide con Ypacaraí, Central.',
+  'CAACUPE 1 & 2 (id:2,3): Coordenadas verificadas ✓ Ambas dentro de Caacupé, Cordillera.',
+  'PARAGUARI/PARAGUARI 2 (id:4,5): Verificadas ✓',
+  'BARRERO (id:6): Verificada ✓ Dentro de Barrero, Cordillera.',
+  'TOBATI (id:7): Verificada ✓',
+  'CARAPEGUA (id:8): Verificada ✓',
+  'PIRIBEBUY (id:9): Verificada ✓',
+  'CARAGUATAY (id:10): Verificada ✓',
+  'QUIINDY (id:11): Verificada ✓',
+  'SAN JOSÉ DE LOS ARROYOS (id:12): Verificada ✓',
+  'OVIEDO 1 (id:13): Verificada ✓',
+  'SANTANI (id:14): Verificada ✓ Ciudad: San Estanislao.',
+  'VILLARRICA/VILLARRICA 2 (id:15,16): Verificadas ✓ Ambas dentro de Villarrica, Guairá.',
+  'CAAGUAZU 1/2/3 (id:17,18,19): Verificadas ✓ Muy próximas entre sí — clustering activado.',
+  'SAN JUAN BAUTISTA (id:20): Verificada ✓',
+  'PILAR 1/2/3 (id:21,24,25): Verificadas ✓ Coordenadas distintas dentro de Pilar.',
+  'SAN IGNACIO (id:22): Verificada ✓',
+  'CAMPO 9 (id:23): Verificada ✓ Dr. Juan Eulogio Estigarribia.',
+  'SAN JUAN NEPOMUCENO (id:26): Verificada ✓ Caazapá.',
+  'OCAMPOS (id:27): Verificada ✓',
+  'SANTA ROSA (id:28): Verificada ✓ Santa Rosa del Aguaray, San Pedro.',
+  'AYOLAS (id:29): Verificada ✓',
+  'CORONEL BOGADO (id:30): Verificada ✓',
+  'OBLIGADO (id:31): Verificada ✓',
+  'ENCARNACION/ENCARNACION 2 (id:32,33): Verificadas ✓',
+  '⚠️ Sin errores de coordenadas detectados. Todas las coordenadas son coherentes con la ciudad/departamento declarados y se encuentran dentro del territorio paraguayo.',
+];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let map, markers = {}, routeSelected = [], routeLine = null, baseMarker = null;
+let filteredBranches = [...BRANCHES];
+
+function statusColor(s) {
+  if (s === 'Controlada') return '#38a169';
+  if (s === 'Programada') return '#d69e2e';
+  return '#e53e3e';
+}
+
+function statusEmoji(s) {
+  if (s === 'Controlada') return '📍'; // green
+  if (s === 'Programada') return '📍'; // yellow
+  return '📍'; // red
+}
+
+function createPinIcon(status) {
+  const color = statusColor(status);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="28" height="42">
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24C24 5.373 18.627 0 12 0z" fill="${color}" stroke="white" stroke-width="1.5"/>
+    <circle cx="12" cy="12" r="5" fill="white" opacity="0.95"/>
+  </svg>`;
+  return L.divIcon({
+    html: svg,
+    className: '',
+    iconSize: [28, 42],
+    iconAnchor: [14, 42],
+    popupAnchor: [0, -44],
+  });
+}
+
+function createBaseIcon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="32" height="48">
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24C24 5.373 18.627 0 12 0z" fill="#1a1916" stroke="white" stroke-width="1.5"/>
+    <circle cx="12" cy="12" r="5" fill="white" opacity="0.95"/>
+    <text x="12" y="16" text-anchor="middle" fill="#1a1916" font-size="7" font-family="sans-serif" font-weight="bold">★</text>
+  </svg>`;
+  return L.divIcon({ html: svg, className: '', iconSize: [32, 48], iconAnchor: [16, 48], popupAnchor: [0, -50] });
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAP INIT
+// ═══════════════════════════════════════════════════════════
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([-25.8, -57.0], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+    maxZoom: 18,
+  }).addTo(map);
+
+  // Base marker
+  baseMarker = L.marker([BASE.lat, BASE.lng], { icon: createBaseIcon() }).addTo(map);
+  baseMarker.bindPopup(`<div class="popup-header"><div class="popup-title">⭐ BASE OPERATIVA</div><div class="popup-location">Ypacaraí · Central</div></div><div class="popup-body"><div class="popup-row"><span class="popup-key">Responsable</span><span class="popup-val">Oscar R. Liuzzi Franco</span></div><div class="popup-row"><span class="popup-key">Empresa</span><span class="popup-val">APOSTA.LA</span></div></div>`);
+
+  BRANCHES.forEach(b => addMarker(b));
+}
+
+function addMarker(b) {
+  const m = L.marker([b.lat, b.lng], { icon: createPinIcon(b.status) }).addTo(map);
+  m.bindPopup(buildPopup(b));
+  m.on('click', () => highlightBranch(b.id));
+  markers[b.id] = m;
+}
+
+function buildPopup(b) {
+  return `<div class="popup-header" style="background:${statusColor(b.status)}">
+    <div class="popup-title">${b.name}</div>
+    <div class="popup-location">${b.city} · ${b.dept}</div>
+  </div>
+  <div class="popup-body">
+    <div class="popup-row"><span class="popup-key">Estado</span><span class="popup-val"><strong>${b.status}</strong></span></div>
+    <div class="popup-row"><span class="popup-key">Responsable</span><span class="popup-val">Oscar R. Liuzzi Franco</span></div>
+    <div class="popup-row"><span class="popup-key">Distancia desde Asu.</span><span class="popup-val">${b.dist} km</span></div>
+    <div class="popup-row"><span class="popup-key">Horario</span><span class="popup-val">${b.horario}</span></div>
+    <div class="popup-row"><span class="popup-key">Controles 2026</span><span class="popup-val">${b.controls}</span></div>
+    <div class="popup-row"><span class="popup-key">Último control</span><span class="popup-val">${b.lastVisit || '—'}</span></div>
+    ${b.obs ? `<div class="popup-row"><span class="popup-key">Obs.</span><span class="popup-val">${b.obs}</span></div>` : ''}
+    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+      <button onclick="changeStatus(${b.id},'Programada')" style="flex:1;padding:5px;background:#d69e2e;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600">Programar</button>
+      <button onclick="changeStatus(${b.id},'Controlada')" style="flex:1;padding:5px;background:#38a169;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600">Marcar Controlada</button>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// INTERACTIONS
+// ═══════════════════════════════════════════════════════════
+function changeStatus(id, status) {
+  const b = BRANCHES.find(x => x.id === id);
+  if (!b) return;
+  b.status = status;
+  if (status === 'Controlada' && !b.lastVisit) b.lastVisit = new Date().toLocaleDateString('es-PY');
+  markers[id].setIcon(createPinIcon(status));
+  markers[id].setPopupContent(buildPopup(b));
+  updateKPIs();
+  renderList();
+  showToast(`✓ ${b.name} → ${status}`);
+}
+
+function toggleRouteSelect(id) {
+  const idx = routeSelected.indexOf(id);
+  if (idx >= 0) routeSelected.splice(idx, 1);
+  else routeSelected.push(id);
+  renderList();
+  renderRoutePanel();
+}
+
+function highlightBranch(id) {
+  const item = document.querySelector(`.branch-item[data-id="${id}"]`);
+  if (item) { item.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); item.classList.add('selected'); setTimeout(() => item.classList.remove('selected'), 1500); }
+  map.setView([BRANCHES.find(b=>b.id===id).lat, BRANCHES.find(b=>b.id===id).lng], 13, { animate: true });
+}
+
+function optimizeRoute() {
+  if (routeSelected.length < 2) { showToast('Seleccioná al menos 2 sucursales'); return; }
+  // Nearest neighbor from base
+  let unvisited = routeSelected.map(id => BRANCHES.find(b=>b.id===id));
+  let current = BASE;
+  let ordered = [];
+  while (unvisited.length) {
+    let nearest = unvisited.reduce((best, b) => {
+      const d = Math.hypot(b.lat - current.lat, b.lng - current.lng);
+      return d < best.dist ? { b, dist: d } : best;
+    }, { b: null, dist: Infinity });
+    ordered.push(nearest.b);
+    unvisited = unvisited.filter(b => b.id !== nearest.b.id);
+    current = nearest.b;
+  }
+  routeSelected = ordered.map(b => b.id);
+  drawRoute();
+  renderRoutePanel();
+  showToast('Ruta optimizada ✓');
+}
+
+function drawRoute() {
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  if (routeSelected.length < 1) return;
+  const points = [
+    [BASE.lat, BASE.lng],
+    ...routeSelected.map(id => { const b = BRANCHES.find(x=>x.id===id); return [b.lat, b.lng]; }),
+    [BASE.lat, BASE.lng]
+  ];
+  routeLine = L.polyline(points, { color: '#3182ce', weight: 3, opacity: 0.7, dashArray: '8,6' }).addTo(map);
+  map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+}
+
+function clearRoute() {
+  routeSelected = [];
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  renderList();
+  renderRoutePanel();
+}
+
+function renderRoutePanel() {
+  const panel = document.getElementById('route-panel');
+  const stopsEl = document.getElementById('route-stops');
+  const countEl = document.getElementById('route-count');
+  const statsEl = document.getElementById('route-stats');
+  panel.style.display = routeSelected.length > 0 ? '' : 'none';
+  countEl.textContent = routeSelected.length;
+  stopsEl.innerHTML = routeSelected.map((id, i) => {
+    const b = BRANCHES.find(x=>x.id===id);
+    return `<div class="route-stop"><div class="stop-num">${i+1}</div><div style="flex:1">${b.name}</div><div style="font-size:11px;color:var(--text-muted)">${b.city}</div></div>`;
+  }).join('');
+  const totalKm = routeSelected.reduce((s,id)=>s+BRANCHES.find(b=>b.id===id).dist,0);
+  const estHrs = Math.round(totalKm / 70 * 10) / 10;
+  statsEl.innerHTML = `📏 Distancia total estimada: <strong>${totalKm} km</strong> · ⏱ Tiempo aprox.: <strong>${estHrs} h</strong> · 🏠 Salida/Retorno: Ypacaraí`;
+  drawRoute();
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTERS & LIST
+// ═══════════════════════════════════════════════════════════
+function buildFilters() {
+  const depts = [...new Set(BRANCHES.map(b=>b.dept))].sort();
+  const sel = document.getElementById('filter-dept');
+  depts.forEach(d => { const opt = document.createElement('option'); opt.value = d; opt.textContent = d; sel.appendChild(opt); });
+}
+
+function filterBranches() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const dept = document.getElementById('filter-dept').value;
+  const status = document.getElementById('filter-status').value;
+  filteredBranches = BRANCHES.filter(b => {
+    return (!q || b.name.toLowerCase().includes(q) || b.city.toLowerCase().includes(q))
+        && (!dept || b.dept === dept)
+        && (!status || b.status === status);
+  });
+  renderList();
+  // Show/hide markers
+  BRANCHES.forEach(b => {
+    if (markers[b.id]) {
+      if (filteredBranches.find(fb=>fb.id===b.id)) markers[b.id].addTo(map);
+      else map.removeLayer(markers[b.id]);
+    }
+  });
+}
+
+function renderList() {
+  const el = document.getElementById('branch-list');
+  el.innerHTML = filteredBranches.map(b => {
+    const isRoute = routeSelected.includes(b.id);
+    const badgeClass = b.status === 'Controlada' ? 'badge-controlada' : b.status === 'Programada' ? 'badge-programada' : 'badge-pendiente';
+    return `<div class="branch-item${isRoute?' route-selected':''}" data-id="${b.id}" onclick="highlightBranch(${b.id})">
+      <div class="branch-check${isRoute?' checked':''}" onclick="event.stopPropagation();toggleRouteSelect(${b.id})"></div>
+      <div class="branch-info">
+        <div class="branch-name">${b.name}</div>
+        <div class="branch-meta">${b.city} · ${b.dist} km</div>
+      </div>
+      <span class="status-badge ${badgeClass}">${b.status}</span>
+    </div>`;
+  }).join('');
+}
+
+function updateKPIs() {
+  const pending = BRANCHES.filter(b=>b.status==='Pendiente').length;
+  const controlled = BRANCHES.filter(b=>b.status==='Controlada').length;
+  const scheduled = BRANCHES.filter(b=>b.status==='Programada').length;
+  const pct = Math.round(controlled/BRANCHES.length*100);
+  document.getElementById('kpi-pending').textContent = pending;
+  document.getElementById('kpi-controlled').textContent = controlled;
+  document.getElementById('kpi-scheduled').textContent = scheduled;
+  document.getElementById('kpi-coverage').textContent = pct+'%';
+  document.getElementById('progress-fill').style.width = pct+'%';
+  document.getElementById('prog-label').textContent = `${controlled} / ${BRANCHES.length}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════
+function buildDashboard() {
+  const pending = BRANCHES.filter(b=>b.status==='Pendiente').length;
+  const controlled = BRANCHES.filter(b=>b.status==='Controlada').length;
+  const scheduled = BRANCHES.filter(b=>b.status==='Programada').length;
+  const pct = Math.round(controlled/BRANCHES.length*100);
+
+  document.getElementById('dash-kpis').innerHTML = `
+    <div class="dash-card dash-card-big"><div class="dash-number">${BRANCHES.length}</div><div class="dash-label">Total Sucursales</div></div>
+    <div class="dash-card dash-card-big"><div class="dash-number red">${pending}</div><div class="dash-label">Pendientes</div></div>
+    <div class="dash-card dash-card-big"><div class="dash-number yellow">${scheduled}</div><div class="dash-label">Programadas</div></div>
+    <div class="dash-card dash-card-big"><div class="dash-number green">${controlled}</div><div class="dash-label">Controladas</div></div>
+    <div class="dash-card dash-card-big"><div class="dash-number blue">${pct}%</div><div class="dash-label">Cobertura</div></div>
+    <div class="dash-card dash-card-big"><div class="dash-number">${TRIPS.length}</div><div class="dash-label">Viajes Planificados</div></div>
+  `;
+
+  // Dept table
+  const depts = [...new Set(BRANCHES.map(b=>b.dept))].sort();
+  const maxPending = Math.max(...depts.map(d => BRANCHES.filter(b=>b.dept===d&&b.status==='Pendiente').length));
+  document.querySelector('#dash-dept-table tbody').innerHTML = depts.map(d => {
+    const total = BRANCHES.filter(b=>b.dept===d).length;
+    const pend = BRANCHES.filter(b=>b.dept===d&&b.status==='Pendiente').length;
+    const w = maxPending > 0 ? Math.round(pend/maxPending*120) : 0;
+    return `<tr><td><strong>${d}</strong></td><td>${total}</td><td>${pend}</td><td><div class="dept-bar-wrap"><div class="dept-bar" style="width:${w}px"></div><span style="font-size:11px;color:var(--text-muted)">${pend}</span></div></td></tr>`;
+  }).join('');
+
+  // Detail table
+  document.querySelector('#dash-detail-table tbody').innerHTML = BRANCHES.map(b => {
+    const badgeClass = b.status === 'Controlada' ? 'badge-controlada' : b.status === 'Programada' ? 'badge-programada' : 'badge-pendiente';
+    return `<tr><td style="color:var(--text-muted);font-family:'DM Mono',monospace">${String(b.id).padStart(2,'0')}</td><td><strong>${b.name}</strong></td><td>${b.city}</td><td>${b.dept}</td><td style="font-family:'DM Mono',monospace">${b.dist}</td><td style="font-size:11px;color:var(--text-muted)">${b.horario.substring(0,20)}…</td><td style="text-align:center">${b.controls}</td><td><span class="status-badge ${badgeClass}">${b.status}</span></td></tr>`;
+  }).join('');
+
+  // Trips
+  document.getElementById('dash-trips').innerHTML = TRIPS.map(t => {
+    const badge = t.type === 'Definido' ? 'badge-programada' : 'badge-pendiente';
+    return `<tr><td><strong>Viaje ${t.id}</strong></td><td><span class="status-badge ${badge}">${t.type}</span></td><td style="font-size:12px">${t.depts}</td><td style="font-size:12px">${t.qty} sucursales</td><td>${t.days}</td><td style="font-size:12px">${t.responsible}</td><td style="font-family:'DM Mono',monospace">${t.cost}</td><td><span class="status-badge badge-pendiente">${t.status}</span></td></tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANALYSIS
+// ═══════════════════════════════════════════════════════════
+function buildAnalysis() {
+  const alts = [
+    { name:'Power BI + OneDrive', pros:['Dashboards profesionales', 'Actualización automática', 'Mobile app nativa', 'KPIs avanzados'], cons:['Sin edición de datos', 'Requiere licencia Power BI Pro', 'Mapa limitado en versión free'], cost:'~$10/mes', impl:'Media', auto:'Alta', scale:'Alta', sec:'Alta', mobile:'Alta', score:4 },
+    { name:'Power Apps + Excel/OneDrive', pros:['Edición de datos en campo', 'App móvil completa', 'Integración con Excel'], cons:['Curva de aprendizaje alta', 'Licencia Premium App', 'Mapa básico'], cost:'~$20/mes', impl:'Alta', auto:'Alta', scale:'Media', sec:'Alta', mobile:'Alta', score:3 },
+    { name:'Google My Maps', pros:['Gratis', 'Muy fácil', 'Compartible'], cons:['Sin gestión de estados', 'Sin filtros avanzados', 'Sin dashboard'], cost:'Gratis', impl:'Baja', auto:'Ninguna', scale:'Baja', sec:'Media', mobile:'Alta', score:2 },
+    { name:'Excel + Power Query', pros:['Sin costo adicional', 'Sin nueva plataforma'], cons:['Sin mapa real', 'No web/móvil', 'Actualización manual'], cost:'$0', impl:'Baja', auto:'Baja', scale:'Baja', sec:'Media', mobile:'Baja', score:1 },
+    { name:'Web App (Leaflet + OpenStreetMap) ★', pros:['Mapa completo', '100% personalizable', 'Sin licencias', 'Funciona en cualquier dispositivo', 'Offline posible'], cons:['Requiere desarrollador inicial', 'No edita Excel directamente'], cost:'Hosting ~$5/mes o 0€ en GitHub Pages', impl:'Media', auto:'Alta', scale:'Alta', sec:'Alta', mobile:'Alta', score:5 },
+  ];
+
+  document.getElementById('analysis-grid').innerHTML = alts.map(a => `
+    <div class="analysis-card">
+      <h4>${a.name}</h4>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Ventajas</div>
+        ${a.pros.map(p=>`<div style="font-size:12px;padding:2px 0;color:var(--controlled)">✓ ${p}</div>`).join('')}
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Desventajas</div>
+        ${a.cons.map(c=>`<div style="font-size:12px;padding:2px 0;color:var(--pending)">✗ ${c}</div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+        <div><span style="color:var(--text-muted)">Costo:</span> <strong>${a.cost}</strong></div>
+        <div><span style="color:var(--text-muted)">Implementación:</span> <strong>${a.impl}</strong></div>
+        <div><span style="color:var(--text-muted)">Automatización:</span> <strong>${a.auto}</strong></div>
+        <div><span style="color:var(--text-muted)">Móvil:</span> <strong>${a.mobile}</strong></div>
+        <div><span style="color:var(--text-muted)">Seguridad:</span> <strong>${a.sec}</strong></div>
+        <div><span style="color:var(--text-muted)">Escalabilidad:</span> <strong>${a.scale}</strong></div>
+      </div>
+      <div class="score-dots" style="margin-top:12px">
+        ${[1,2,3,4,5].map(i=>`<div class="dot${i<=a.score?' filled':''}"></div>`).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('rec-card').innerHTML = `
+    <div class="rec-badge">★ RECOMENDACIÓN FINAL</div>
+    <h3>Aplicación Web con Leaflet + OpenStreetMap (esta solución)</h3>
+    <p>Para el Departamento de Control Interno de APOSTA.LA, con 33 sucursales distribuidas en Paraguay y necesidad de acceso desde dispositivos móviles y navegador web, la mejor solución es una <strong>aplicación web HTML/JS con Leaflet y OpenStreetMap</strong>.</p>
+    <p style="margin-top:10px"><strong>Justificación técnica:</strong> Funciona desde cualquier navegador sin instalaciones, no requiere licencias, permite pines personalizados con estados de control, incluye planificación de rutas desde Ypacaraí, filtros avanzados, dashboard ejecutivo y popup con información completa. El Excel puede seguir siendo la fuente de datos maestra y actualizarse periódicamente. Esta misma herramienta puede ser alojada en GitHub Pages, OneDrive SharePoint o cualquier servidor web, con costo prácticamente nulo.</p>
+    <div class="tag-list" style="margin-top:14px">
+      <span class="tag" style="background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff">Sin licencias adicionales</span>
+      <span class="tag" style="background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff">100% web y móvil</span>
+      <span class="tag" style="background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff">OpenStreetMap</span>
+      <span class="tag" style="background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff">Leaflet.js</span>
+      <span class="tag" style="background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff">Pines tipo Google Maps</span>
+    </div>
+  `;
+
+  document.getElementById('architecture-content').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;font-size:13px">
+      <div style="background:var(--surface2);border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">📂 Capa de Datos</div>
+        <div>Excel (.xlsm) en OneDrive como fuente maestra. Hojas: Sucursales, Planificación, Viajes.</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">🗺 Capa de Presentación</div>
+        <div>HTML/JS con Leaflet.js + OpenStreetMap. Desplegable en GitHub Pages o SharePoint.</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">🔄 Flujo de Actualización</div>
+        <div>Editar Excel → exportar datos → actualizar la variable JS en el HTML. Tiempo: 5 min.</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">📱 Acceso Móvil</div>
+        <div>URL compartida por WhatsApp/correo. Funciona en Android/iOS sin instalar nada.</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">🔒 Seguridad</div>
+        <div>Protección por contraseña vía .htaccess o SharePoint. Acceso por link privado.</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">📈 Escalabilidad</div>
+        <div>Agregar sucursales = agregar un objeto al array de datos. Sin límite de sucursales.</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;background:var(--surface2);border-radius:8px;padding:16px;font-size:13px">
+      <div style="font-weight:700;margin-bottom:8px">✅ Validación de Coordenadas GPS</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+        ${COORD_NOTES.map(n=>`<div style="padding:3px 0;${n.startsWith('⚠️')?'grid-column:1/-1;color:var(--controlled);font-weight:600':''}">${n}</div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════
+// VIEW SWITCHER
+// ═══════════════════════════════════════════════════════════
+function showView(view) {
+  document.getElementById('map').style.display = view === 'map' ? 'flex' : 'none';
+  document.getElementById('dashboard-view').style.display = view === 'dashboard' ? 'flex' : 'none';
+  document.getElementById('analysis-view').style.display = view === 'analysis' ? 'flex' : 'none';
+  ['map','dashboard','analysis'].forEach(v => document.getElementById('btn-'+v).classList.toggle('active', v===view));
+  document.getElementById('sidebar').style.display = view === 'map' ? '' : 'none';
+  if (view === 'map' && map) setTimeout(() => map.invalidateSize(), 100);
+  if (view === 'dashboard') buildDashboard();
+  if (view === 'analysis') buildAnalysis();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  buildFilters();
+  renderList();
+  updateKPIs();
+});
+</script>
+</body>
+</html>
